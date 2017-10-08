@@ -9,18 +9,18 @@ from lowpass import LowPassFilter
 
 class Controller(object):
     def __init__(self, *args, **kwargs):
-        wheel_base = *args[0]
-        steer_ratio = *args[1]
-        min_speed = *args[2]
-        max_lat_accel = *args[3]
-        max_steer_angle = *args[4]
-        decel_limit = *args[5]
-        accel_limit = *args[6]
-        vehicle_mass = *args[7]
-        wheel_radius = *args[8]
+        wheel_base = args[0]
+        steer_ratio = args[1]
+        min_speed = args[2]
+        max_lat_accel = args[3]
+        max_steer_angle = args[4]
+        decel_limit = args[5]
+        accel_limit = args[6]
+        vehicle_mass = args[7]
+        wheel_radius = args[8]
 
-        self.brake_deadband = *args[9]
-        self.sample_time = *args[10]
+        self.brake_deadband = args[9]
+        self.sample_time = args[10]
 
         kp = 1.
         ki = 1.
@@ -40,13 +40,13 @@ class Controller(object):
         # TODO: Change the arg, kwarg list to suit your needs
         # Return throttle, brake, steer
         
-        steer = self.yawcontroller.get_steering(desired_lin_vel, desired_ang_vel, current_lin_vel)
+        steer = self.yaw_controller.get_steering(desired_lin_vel, desired_ang_vel, current_lin_vel)
 
         velocity_error = desired_lin_vel - current_lin_vel
         
         if dbw_enabled:
         	acc = self.velocity_controller.step(velocity_error, self.sample_time)
-        	filtered_acc = self.throttle_filter.filter(acc)
+        	filtered_acc = self.throttle_filter.filt(acc)
 
         	if filtered_acc<0:
         		throttle = 0

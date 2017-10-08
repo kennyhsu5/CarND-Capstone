@@ -43,30 +43,43 @@ class WaypointUpdater(object):
         rospy.spin()
 
     def pose_cb(self, msg):
+        if self.global_waypoints is None:
+            return
         next_waypoints_start_num = self.find_next_waypoint(msg.pose)
 	final_waypoints = Lane()
-
-	rospy.loginfo("Pose Location (%s, %s), Next Waypoint Location (%s, %s)",
+	
+        rospy.loginfo("Pose Location (%s, %s), Next Waypoint Location (%s, %s)",
 		msg.pose.position.x,
 		msg.pose.position.y,
-		self.global_waypoints[next_wp].pose.pose.position.x,
-		self.global_waypoints[next_wp].pose.pose.position.y)
+		self.global_waypoints.waypoints[next_waypoints_start_num].pose.pose.position.x,
+		self.global_waypoints.waypoints[next_waypoints_start_num].pose.pose.position.y)
 
 	next_waypoints_end_num = next_waypoints_start_num + LOOKAHEAD_WPS
 
-	if next_waypoints_end_num > len(self.global_waypoints)-1:
-            next_waypoints_end_num = len(self.global_waypoints)-1
+	if next_waypoints_end_num > len(self.global_waypoints.waypoints)-1:
+            next_waypoints_end_num = len(self.global_waypoints.waypoints)-1
         for i in range(next_waypoints_start_num, next_waypoints_end_num):
-            final_waypoints.waypoints.append(deepcopy(self.global_waypoints[i]))
-
+            final_waypoints.waypoints.append(self.global_waypoints.waypoints[i])
 	self.final_waypoints_pub.publish(final_waypoints)
 
     def find_nearest_waypoint(self, pose):
         def dl(a, b):
             return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
+        tmp_dist = 1000000
+        tmp_i = None
+        for i in range(len(self.global_waypoints.waypoints)):
+            position = self.global_waypoints.waypoints[i].pose.pose.position
+            dist = dl(position, pose.position)
+            if dist < tmp_dist:
+               tmp_dist = dist
+               tmp_i = i
+
+        return tmp_i
+        # Below code goes in infinite loop, comment out for now
+        """
         lower_wp_num = 0
-        higher_wp_num = len(self.global_waypoints) - 1
+        higher_wp_num = len(self.global_waypoints.waypoints) - 1
 
         nearest_waypoint_num = higher_wp_num
         closest_dist = None
@@ -75,9 +88,9 @@ class WaypointUpdater(object):
 
             mid_wp_num = (lower_wp_num + higher_wp_num) // 2
 
-            dist_lower = dl(self.global_waypoints[lower_wp_num].pose.pose.position, pose.position)
-            dist_upper = dl(self.global_waypoints[higher_wp_num].pose.pose.position, pose.position)
-            dist_mid = dl(self.global_waypoints[mid_wp_num].pose.pose.position, pose.position)
+            dist_lower = dl(self.global_waypoints.waypoints[lower_wp_num].pose.pose.position, pose.position)
+            dist_upper = dl(self.global_waypoints.waypoints[higher_wp_num].pose.pose.position, pose.position)
+            dist_mid = dl(self.global_waypoints.waypoints[mid_wp_num].pose.pose.position, pose.position)
 
             if dist_mid < closest_dist:
                 closest_dist = dist_mid
@@ -92,15 +105,16 @@ class WaypointUpdater(object):
             # converge when all waypoinmts are next to each other
             if (lower_wp_num + 1) == mid_wp_num and (mid_wp_num + 1) == higher_wp_num:
                 break
-
         return nearest_waypoint_num
+        """
 
     def find_next_waypoint(self, pose):
 
         nearest_waypoint_num = self.find_nearest_waypoint(pose)
-
-        waypoint_x = self.global_waypoints[nearest_waypoint_num].pose.pose.position.x
-        waypoint_y = self.global_waypoints[nearest_waypoint_num].pose.pose.position.y
+        #Below code does not run, comment out for now
+        """
+        waypoint_x = self.global_waypoints.waypoints[nearest_waypoint_num].pose.pose.position.x
+        waypoint_y = self.global_waypoints.waypoints[nearest_waypoint_num].pose.pose.position.y
 
         heading = math.atan2(waypoint_y - pose.position.y, waypoint_x - pose.position.x)
 
@@ -111,7 +125,7 @@ class WaypointUpdater(object):
 
         if (abs(yaw-heading) > math.pi / 4):
             nearest_waypoint_num += 1
-
+        """
         return nearest_waypoint_num
 
     def waypoints_cb(self, waypoints):
