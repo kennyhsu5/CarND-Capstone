@@ -12,6 +12,8 @@ import cv2
 import yaml
 import math
 import numpy as np
+from scipy.misc import imsave
+import time
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -23,10 +25,6 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
-
-	self.store_light_wp = []	
-	self.wp_closest = None     
-	self.l_car_position = None
 	
 	self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -52,11 +50,8 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-	#rospy.logerr("Traffic loaded")
 	
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)       
-          
-        #self.store_light_wp = []
         
         rospy.spin()
 
@@ -81,8 +76,6 @@ class TLDetector(object):
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
 
-	#rospy.logerr("State: " + str(state))
-
         '''
         Publish upcoming red lights at camera frequency.
         Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
@@ -101,7 +94,7 @@ class TLDetector(object):
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
-    def get_closest_waypoint(self, pose):
+    def get_closest_waypoint(self, x, y):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
@@ -111,35 +104,22 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-	#rospy.logerr(str(pose))
-	minimum = 999.0
-        wp_closest = self.wp_closest
-	if self.waypoints is not None:
-            w_points = self.waypoints.waypoints 	    
-            mininum = self.difference(pose.position.x, pose.position.y, w_points[0].pose.pose.position)
-            for i, point in enumerate(w_points):
-                d = self.difference_1(pose.position, w_points[i].pose.pose.position)  
-                if d<minimum:
-                    minimum = d
-                    wp_closest = i
-            self.wp_closest = wp_closest                      
+	if self.waypoints is None:
+	    return -1
+
+	minimum = 99999.0
+	wp_closest = -1
+        for i, point in enumerate(self.waypoints.waypoints):
+            d = self.difference(x, y, point.pose.pose.position.x, point.pose.pose.position.y)  
+            if d < minimum:
+                minimum = d
+                wp_closest = i                      
         return wp_closest
 
-    def difference(self, p1_x,p1_y, p2):
-	#rospy.logerr("d")
-	#rospy.logerr(str(type(p1)))
-	p1_x1 = p1_x
-	p1_y1 = p1_y
-	x_2 = (p1_x1-p2.x)*(p1_x1-p2.x)
-        y_2 = (p1_y1-p2.y)*(p1_y1-p2.y)     
-        sqrt1 = math.sqrt(x_2+y_2)         
-        return sqrt1
-
-    def difference_1(self, p1, p2):
-	x_2 = (p1.x-p2.x)*(p1.x-p2.x)
-        y_2 = (p1.y-p2.y)*(p1.y-p2.y)     
-        sqrt1 = math.sqrt(x_2+y_2) 
-        #rospy.logerr("p1: " +str(p1) + " p2: "+str(p2))
+    def difference(self, p1x, p1y, p2x, p2y):
+	x_diff = (p1x-p2x)*(p1x-p2x)
+        y_diff = (p1y-p2y)*(p1y-p2y)     
+        sqrt1 = math.sqrt(x_diff+y_diff) 
         return sqrt1
 	
 
@@ -239,21 +219,10 @@ class TLDetector(object):
             return False
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        x, y = self.project_to_image_plane(light.pose.pose.position.x,light.pose.pose.position.y)
-	#x, y = self.project_to_image_plane(light[0], light[1])
-
-	_image_width = self.config['camera_info']['image_width']
-        _image_height = self.config['camera_info']['image_height']
-
-        if ((x is not None) or (y is not None) or (x<0) or (y<0) or (x>_image_width) or (y>_image_height)):
-            return TrafficLight.UNKNOWN	
-        else:
-	    #TODO use light location to zoom in on traffic light in image
-	    img = cv2.resize(cv_image, (300,200))
-
-            #Get classification
-            return self.light_classifier.get_classification(img)
+	img = cv2.resize(cv_image, (300,200))
+        tmp = self.light_classifier.get_classification(img)
+	imsave(str(tmp) + "-" + str(time.time()) + ".png", img)
+	return tmp
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -264,86 +233,31 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+	if self.waypoints is None:
+	    return -1, TrafficLight.UNKNOWN
         light = None
 
 	 # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
-            car_position = self.get_closest_waypoint(self.pose.pose)
-            if car_position is not None:
-                self.l_car_position = car_position
+            car_position = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y)
 
-	#l = ""
-	#light_position = self.config
-	#for key in self.config.keys():
-	#	l = l+str(key)		
-	#rospy.logerr(str(l))
-
-	light_position = self.lights
-	#rospy.logerr(str(light_position[0].pose.pose.position.x))
-
-	#Assign lights to waypoints
-        light_wp = []	
-	if self.waypoints is not None:
-	    waypoints = self.waypoints	
-	    for i in range(len(light_position)):
-	        position = self.light_get_closest_waypoint(waypoints, light_position[i])    
-		light_wp.append(position)
-            self.store_light_wp = light_wp 
-	else:            
-            light_wp = self.store_light_wp       
-		 
-        # Find the closest visible traffic light (if one exists)
-	# Find position of closest light
-	if len (light_wp):	
-	    if (self.l_car_position > max (light_wp)):
-                light_wp_num = min(light_wp)
-            else: 
-                a = light_wp[:]
-   	        a[:] = [x-self.l_car_position for x in a]
-                light_wp_num = min(i for i in a if i>0)
-                light_wp_num = light_wp_num + self.l_car_position            
-
-	        index1 = light_wp.index(light_wp_num) 	
-                light = light_position[index1]
-        
-	# Check only if light is in certain distance 150m:           
-	#rospy.logerr(str(type(light)))
+	min_pos_diff = 99999
+	for pos in stop_line_positions:
+	    # Better to compute distanc to stop line based on coordinates, but we are given position so
+	    # use that for now.
+	    light_wp_position = self.get_closest_waypoint(pos[0], pos[1])
+	    diff = light_wp_position - car_position
+	    # Only use stop lines that are ahead in waypoint position of the car.
+	    # Edge case when the track wraps around need to be handled later
+	    if diff > 0 and diff < min_pos_diff:
+		min_pos_diff = diff
+		light = light_wp_position
 
         if light:
-            distance = self.difference(light.pose.pose.position.x, light.pose.pose.position.y, self.waypoints.waypoints[self.l_car_position].pose.pose.position) 
-	    if distance >150:
-                return -1, TrafficLight.UNKNOWN	
-            else:
-        	state = self.get_light_state(light)
-		#rospy.logerr(str(state))
-                return light_wp, state
-        self.waypoints = None
+            state = self.get_light_state(light)
+            return light, state
         return -1, TrafficLight.UNKNOWN
-
-    def light_get_closest_waypoint(self, wp, light_pos):
-
-        """Identifies the closest path waypoint to a given light
-            https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
-
-        """	        
-        wp_closest = None 
-        points = wp.waypoints 
-        mininum = self.difference_l(light_pos.pose.pose.position, points[0].pose.pose.position)
-        for i, point in enumerate(points):
-            d = self.difference_l(light_pos.pose.pose.position, point.pose.pose.position)  
-            if d<mininum:
-                mininum = d
-                wp_closest = i            
-        return wp_closest
-    
-    def difference_l(self, light_po, p2):
-	#rospy.log(str(light_po))
-	x_2 = (light_po.x-p2.x)*(light_po.x-p2.x)
-        y_2 = (light_po.y-p2.y)*(light_po.y-p2.y)     
-        sqrt1 = math.sqrt(x_2+y_2) 
-        return sqrt1
-	
 
 if __name__ == '__main__':
     try:
