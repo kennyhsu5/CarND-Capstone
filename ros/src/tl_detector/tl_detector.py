@@ -216,9 +216,7 @@ class TLDetector(object):
                                 [0,fy,image_height/2],  	
                                  [0,0,1]])
         distCoeffs = None
-        ret,_ = cv2.projectPoints(objectPoints, rvec,tvec,cameraMatrix, distCoeffs)
-	
-	
+        ret,_ = cv2.projectPoints(objectPoints, rvec,tvec,cameraMatrix, distCoeffs)	
 
         x2 = int(ret[0,0,0])
         y2 = int(ret[0,0,1])
@@ -245,11 +243,17 @@ class TLDetector(object):
         x, y = self.project_to_image_plane(light.pose.pose.position.x,light.pose.pose.position.y)
 	#x, y = self.project_to_image_plane(light[0], light[1])
 
-        #TODO use light location to zoom in on traffic light in image
-	img = cv2.resize(cv_image, (300,200))
+	_image_width = self.config['camera_info']['image_width']
+        _image_height = self.config['camera_info']['image_height']
 
-        #Get classification
-        return self.light_classifier.get_classification(img)
+        if ((x is not None) or (y is not None) or (x<0) or (y<0) or (x>_image_width) or (y>_image_height)):
+            return TrafficLight.UNKNOWN	
+        else:
+	    #TODO use light location to zoom in on traffic light in image
+	    img = cv2.resize(cv_image, (300,200))
+
+            #Get classification
+            return self.light_classifier.get_classification(img)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
