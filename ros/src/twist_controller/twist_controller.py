@@ -23,9 +23,9 @@ class Controller(object):
         self.sample_time = args[10]
 
         kp = 1.
-        ki = 1.
-        kd = 1.
-        mn = -decel_limit
+        ki = 0.
+        kd = 0.
+        mn = decel_limit
         mx = accel_limit
 
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
@@ -33,8 +33,6 @@ class Controller(object):
         self.throttle_filter = LowPassFilter(5*self.sample_time, self.sample_time)
 
         self.brake_conversion = vehicle_mass*wheel_radius
-
-
 
     def control(self, desired_lin_vel=0., desired_ang_vel=0., current_lin_vel=0., current_ang_vel=0., dbw_enabled=False, sample_time = 0.02):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -62,7 +60,7 @@ class Controller(object):
 
        	else:
        		self.velocity_controller.reset()
-       		return 1., 0., 0.
+       		return 0., 0., 0.
 
 
 

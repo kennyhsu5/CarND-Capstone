@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
+import tf
+import numpy as np
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Int32
 from styx_msgs.msg import Lane, Waypoint
 
 import math
@@ -22,6 +25,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+STOP_DISTANCE = 10
 
 
 class WaypointUpdater(object):
@@ -32,13 +36,13 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-        #rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+	rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         #rospy.Subscriber('/obstacle_waypoint', Lane, self.obstacle_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
 	self.global_waypoints = None
+	self.red_light_wp = -1
 
         rospy.spin()
 
@@ -47,17 +51,14 @@ class WaypointUpdater(object):
             return
         next_waypoints_start_num = self.find_next_waypoint(msg.pose)
 	final_waypoints = Lane()
-	
-        rospy.loginfo("Pose Location (%s, %s), Next Waypoint Location (%s, %s)",
-		msg.pose.position.x,
-		msg.pose.position.y,
-		self.global_waypoints.waypoints[next_waypoints_start_num].pose.pose.position.x,
-		self.global_waypoints.waypoints[next_waypoints_start_num].pose.pose.position.y)
 
 	next_waypoints_end_num = next_waypoints_start_num + LOOKAHEAD_WPS
 
 	if next_waypoints_end_num > len(self.global_waypoints.waypoints)-1:
             next_waypoints_end_num = len(self.global_waypoints.waypoints)-1
+	elif self.red_light_wp != -1 and next_waypoints_end_num > self.red_light_wp:
+	    next_waypoints_end_num = self.red_light_wp - STOP_DISTANCE
+
         for i in range(next_waypoints_start_num, next_waypoints_end_num):
             final_waypoints.waypoints.append(self.global_waypoints.waypoints[i])
 	self.final_waypoints_pub.publish(final_waypoints)
@@ -76,43 +77,10 @@ class WaypointUpdater(object):
                tmp_i = i
 
         return tmp_i
-        # Below code goes in infinite loop, comment out for now
-        """
-        lower_wp_num = 0
-        higher_wp_num = len(self.global_waypoints.waypoints) - 1
-
-        nearest_waypoint_num = higher_wp_num
-        closest_dist = None
-
-        while 1:
-
-            mid_wp_num = (lower_wp_num + higher_wp_num) // 2
-
-            dist_lower = dl(self.global_waypoints.waypoints[lower_wp_num].pose.pose.position, pose.position)
-            dist_upper = dl(self.global_waypoints.waypoints[higher_wp_num].pose.pose.position, pose.position)
-            dist_mid = dl(self.global_waypoints.waypoints[mid_wp_num].pose.pose.position, pose.position)
-
-            if dist_mid < closest_dist:
-                closest_dist = dist_mid
-                nearest_waypoint_num = mid_wp_num
-            elif dist_upper < closest_dist:
-                closest_dist = dist_upper
-                nearest_waypoint_num = higher_wp_num
-	    else:
-                closest_dist = dist_lower
-                nearest_waypoint_num = lower_wp_num
-
-            # converge when all waypoinmts are next to each other
-            if (lower_wp_num + 1) == mid_wp_num and (mid_wp_num + 1) == higher_wp_num:
-                break
-        return nearest_waypoint_num
-        """
 
     def find_next_waypoint(self, pose):
 
         nearest_waypoint_num = self.find_nearest_waypoint(pose)
-        #Below code does not run, comment out for now
-        """
         waypoint_x = self.global_waypoints.waypoints[nearest_waypoint_num].pose.pose.position.x
         waypoint_y = self.global_waypoints.waypoints[nearest_waypoint_num].pose.pose.position.y
 
@@ -121,11 +89,10 @@ class WaypointUpdater(object):
         def quat_array(o):
             return np.array([o.x, o.y, o.z, o.w])
 
-        (roll, pitch, yaw) = euler_from_quaternion(quat_array(pose.orientation))
+        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(quat_array(pose.orientation))
 
         if (abs(yaw-heading) > math.pi / 4):
             nearest_waypoint_num += 1
-        """
         return nearest_waypoint_num
 
     def waypoints_cb(self, waypoints):
@@ -133,8 +100,7 @@ class WaypointUpdater(object):
         
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+	self.red_light_wp = msg.data
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later

@@ -221,7 +221,7 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 	img = cv2.resize(cv_image, (300,200))
         tmp = self.light_classifier.get_classification(img)
-	imsave(str(tmp) + "-" + str(time.time()) + ".png", img)
+	#imsave(str(tmp) + "-" + str(time.time()) + ".png", img)
 	return tmp
 
     def process_traffic_lights(self):
@@ -243,6 +243,7 @@ class TLDetector(object):
             car_position = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y)
 
 	min_pos_diff = 99999
+	state, tmp = 4, 0
 	for pos in stop_line_positions:
 	    # Better to compute distanc to stop line based on coordinates, but we are given position so
 	    # use that for now.
@@ -253,9 +254,11 @@ class TLDetector(object):
 	    if diff > 0 and diff < min_pos_diff:
 		min_pos_diff = diff
 		light = light_wp_position
+		state = self.lights[tmp].state
+	    tmp += 1
 
         if light:
-            state = self.get_light_state(light)
+            #state = self.get_light_state(light)
             return light, state
         return -1, TrafficLight.UNKNOWN
 
