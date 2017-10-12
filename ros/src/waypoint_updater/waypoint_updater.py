@@ -25,8 +25,8 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
-STOP_DISTANCE = 10
-
+STOP_DISTANCE = 5
+DECEL_SPEED = 0.25
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -53,14 +53,28 @@ class WaypointUpdater(object):
 	final_waypoints = Lane()
 
 	next_waypoints_end_num = next_waypoints_start_num + LOOKAHEAD_WPS
-
+	slow_down = False
 	if next_waypoints_end_num > len(self.global_waypoints.waypoints)-1:
             next_waypoints_end_num = len(self.global_waypoints.waypoints)-1
 	elif self.red_light_wp != -1 and next_waypoints_end_num > self.red_light_wp:
 	    next_waypoints_end_num = self.red_light_wp - STOP_DISTANCE
+	    slow_down = True
 
         for i in range(next_waypoints_start_num, next_waypoints_end_num):
             final_waypoints.waypoints.append(self.global_waypoints.waypoints[i])
+	if slow_down:
+	    if len(final_waypoints.waypoints) > 1:
+	        curr_vel = self.get_waypoint_velocity(final_waypoints.waypoints[0])
+	        num_wp_to_stop = len(final_waypoints.waypoints)
+	        steps_to_stop = min(int(curr_vel / DECEL_SPEED), num_wp_to_stop)
+	        speed_target = 0
+	        for i in range(1, steps_to_stop):
+		    self.set_waypoint_velocity(final_waypoints.waypoints, num_wp_to_stop - i, speed_target)
+		    speed_target += DECEL_SPEED
+	else:
+	    for i in range(len(final_waypoints.waypoints)):
+	    	# Set to original velocity
+	    	self.set_waypoint_velocity(final_waypoints.waypoints, i, 11.1112)
 	self.final_waypoints_pub.publish(final_waypoints)
 
     def find_nearest_waypoint(self, pose):
