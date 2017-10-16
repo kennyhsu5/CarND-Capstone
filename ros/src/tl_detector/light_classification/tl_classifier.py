@@ -58,7 +58,7 @@ class TLClassifier(object):
         
             flatten_size = 4 * 6 * 8
             self.flatten = tf.reshape(self.layer4_pool, [-1, flatten_size])
-            self.layer7 = self.fc_layer(self.flatten, 50, 'layer7')
+            self.layer7 = self.fc_layer(self.flatten, 75, 'layer7')
             self.layer7_dropout = tf.nn.dropout(self.layer7, self.keep_prob)
             self.logits = tf.contrib.layers.fully_connected(self.layer7_dropout, 4, activation_fn=None, scope='logits') 
             self.inference = tf.argmax(self.logits, axis=1)

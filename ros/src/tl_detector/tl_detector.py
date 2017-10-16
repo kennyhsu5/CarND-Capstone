@@ -12,8 +12,6 @@ import cv2
 import yaml
 import math
 import numpy as np
-from scipy.misc import imsave
-import time
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -173,7 +171,7 @@ class TLDetector(object):
 		    state = self.lights[tmp].state
 	        tmp += 1
 
-        if light and min_pos_diff < 150:
+        if light and min_pos_diff < 100:
             pred_state = self.get_light_state(light)
             return light, pred_state
         return -1, TrafficLight.UNKNOWN
