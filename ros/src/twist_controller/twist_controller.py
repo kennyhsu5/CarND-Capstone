@@ -22,9 +22,9 @@ class Controller(object):
         self.brake_deadband = args[9]
         self.sample_time = args[10]
 
-        kp = 1.
-        ki = 0.
-        kd = 0.
+        kp = 1.0
+        ki = 0.0015
+        kd = 0.0
         mn = decel_limit
         mx = accel_limit
 
