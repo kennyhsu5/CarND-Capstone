@@ -2,6 +2,7 @@
 
 import rospy
 from std_msgs.msg import Bool
+from styx_msgs.msg import Lane
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
 import math
@@ -59,12 +60,14 @@ class DBWNode(object):
 
         # Subscribe to all the topics you need to
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb)
+	rospy.Subscriber('/final_waypoints', Lane, self.num_waypoints_cb)
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb)
         rospy.Subscriber('/twist_cmd', TwistStamped, self.waypoint_velocity_cb)
 
         self.dbw_enabled = False
 	self.prev_dbw_enabled = self.dbw_enabled
-        self.current_lin_vel = self.current_ang_vel = self.desired_lin_vel = self.desired_ang_vel = (0.,0.,0.) 
+	self.num_waypoints = 200
+        self.current_lin_vel = self.current_ang_vel = self.desired_lin_vel = self.desired_ang_vel = None 
 
         self.loop()
 
@@ -76,17 +79,22 @@ class DBWNode(object):
     def loop(self):
         rate = rospy.Rate(self.update_rate) # 50Hz
         while not rospy.is_shutdown():
-	    if self.dbw_enabled != self.prev_dbw_enabled:
-		self.controller = self.setupController()
-		self.prev_dbw_enabled = self.dbw_enabled
+	    if self.current_lin_vel is not None and self.current_ang_vel is not None \
+	      and self.desired_lin_vel is not None and self.desired_ang_vel is not None:
+	    	if self.dbw_enabled != self.prev_dbw_enabled:
+		    self.controller = self.setupController()
+		    self.prev_dbw_enabled = self.dbw_enabled
 
-            # Get predicted throttle, brake, and steering using `twist_controller`
-            # You should only publish the control commands if dbw is enabled
-            throttle, brake, steering = self.controller.control(self.desired_lin_vel[0], self.desired_ang_vel[2],
-                                                                self.current_lin_vel[0], self.current_ang_vel[2],
-                                                                self.dbw_enabled, self.sample_time)
-            if self.dbw_enabled:
-              self.publish(throttle, brake, steering)
+                # Get predicted throttle, brake, and steering using `twist_controller`
+                # You should only publish the control commands if dbw is enabled
+                throttle, brake, steering = self.controller.control(self.desired_lin_vel[0], self.desired_ang_vel[2],
+								    self.current_lin_vel[0], self.current_ang_vel[2],
+                                                                    self.dbw_enabled, self.sample_time)
+                if self.dbw_enabled:
+		    if self.num_waypoints < 3:
+		        # Hard brake
+		        brake = 20000
+                    self.publish(throttle, brake, steering)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -111,13 +119,18 @@ class DBWNode(object):
 	self.prev_dbw_enabled = self.dbw_enabled
         self.dbw_enabled = msg.data 
 
+    def num_waypoints_cb(self, msg):
+	self.num_waypoints = len(msg.waypoints)
+
     def current_velocity_cb(self, msg):
-        self.current_lin_vel = (msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z)
-        self.current_ang_vel = (msg.twist.angular.x, msg.twist.angular.y, msg.twist.angular.z)
+	if msg is not None and msg.twist is not None:
+            self.current_lin_vel = (msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z)
+            self.current_ang_vel = (msg.twist.angular.x, msg.twist.angular.y, msg.twist.angular.z)
    
     def waypoint_velocity_cb(self, msg):
-        self.desired_lin_vel = (msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z)
-        self.desired_ang_vel = (msg.twist.angular.x, msg.twist.angular.y, msg.twist.angular.z)
+	if msg is not None and msg.twist is not None:
+            self.desired_lin_vel = (msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z)
+            self.desired_ang_vel = (msg.twist.angular.x, msg.twist.angular.y, msg.twist.angular.z)
 
 if __name__ == '__main__':
     DBWNode()

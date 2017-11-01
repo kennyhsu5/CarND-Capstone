@@ -22,9 +22,9 @@ class Controller(object):
         self.brake_deadband = args[9]
         self.sample_time = args[10]
 
-        kp = 1.0
+        kp = 0.9
         ki = 0.0015
-        kd = 0.0
+        kd = 0.07
         mn = decel_limit
         mx = accel_limit
 
@@ -44,17 +44,17 @@ class Controller(object):
         
         if dbw_enabled:
         	acc = self.velocity_controller.step(velocity_error, self.sample_time)
-        	filtered_acc = self.throttle_filter.filt(acc)
+        	#filtered_acc = self.throttle_filter.filt(acc)
 
-        	if filtered_acc<0:
-        		throttle = 0
-        		brake = -filtered_acc
+        	if acc<0:
+        	    throttle = 0
+        	    brake = abs(acc)
 
-        		if abs(brake) < self.brake_deadband:
-        			brake = brake + self.brake_deadband 
+        	    if brake < self.brake_deadband:
+        	        brake = 0 
         	else:
-        		throttle = filtered_acc
-        		brake = 0
+        	    throttle = acc
+        	    brake = 0
         	
         	return throttle, brake*self.brake_conversion, steer 	
 
