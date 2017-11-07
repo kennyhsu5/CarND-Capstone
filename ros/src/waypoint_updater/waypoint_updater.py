@@ -74,7 +74,7 @@ class WaypointUpdater(object):
 	else:
 	    for i in range(len(final_waypoints.waypoints)):
 	    	# Set to original velocity
-	    	self.set_waypoint_velocity(final_waypoints.waypoints, i, 11.1112)
+	    	self.set_waypoint_velocity(final_waypoints.waypoints, i, self.get_waypoint_velocity(self.global_waypoints.waypoints[0]))
 	self.final_waypoints_pub.publish(final_waypoints)
 
     def find_nearest_waypoint(self, pose):
